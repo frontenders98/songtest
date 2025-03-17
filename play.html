@@ -189,6 +189,49 @@
             font-size: 16px;
             color: #fff;
         }
+        #tourOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        #tourBox {
+            background: #fff;
+            color: #000;
+            padding: 20px;
+            border-radius: 10px;
+            max-width: 400px;
+            text-align: center;
+            position: relative;
+        }
+        #tourBox p {
+            margin: 10px 0;
+            font-size: 16px;
+        }
+        #tourNextBtn, #tourSkipBtn {
+            background: #000;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px;
+            transition: all 0.3s ease;
+        }
+        #tourNextBtn:hover, #tourSkipBtn:hover {
+            background: #333;
+        }
+        .highlight {
+            border: 2px solid #ff0;
+            box-shadow: 0 0 10px #ff0;
+            z-index: 1001;
+        }
     </style>
 </head>
 <body>
@@ -218,6 +261,14 @@
         
         <p id="result"></p>
         <p id="correctAnswer"></p>
+    </div>
+
+    <div id="tourOverlay">
+        <div id="tourBox">
+            <p id="tourMessage"></p>
+            <button id="tourNextBtn">Next</button>
+            <button id="tourSkipBtn">Skip Tour</button>
+        </div>
     </div>
 
     <script>
@@ -252,10 +303,12 @@
                 songs = data.sort((a, b) => a.title.localeCompare(b.title));
                 updateSongList();
                 if (songs.length > 0) prepareNextQuiz();
+                startTour(); // Start tour after songs load
             })
             .catch(err => {
                 console.error('Error fetching songs:', err);
                 result.textContent = "Failed to load songs!";
+                startTour(); // Start tour even if songs fail
             });
 
         function updateSongList(filter = '') {
@@ -419,6 +472,55 @@
                 songSelect.style.color = "#000";
                 correctAnswer.textContent = `Correct: ${currentSong.title}`;
             }
+        }
+
+        // Guided Tour
+        const tourOverlay = document.getElementById('tourOverlay');
+        const tourMessage = document.getElementById('tourMessage');
+        const tourNextBtn = document.getElementById('tourNextBtn');
+        const tourSkipBtn = document.getElementById('tourSkipBtn');
+        const tourSteps = [
+            { element: nextBtn, message: "Click 'Next' to play a random song clip." },
+            { element: songSelect, message: "Select a song from this dropdown to guess." },
+            { element: submitBtn, message: "Click 'Submit' to check your answer." },
+            { element: playPauseBtn, message: "Use this to replay the clip if needed." },
+            { element: uploadBtn, message: "Click here to upload your own songs." }
+        ];
+        let currentStep = 0;
+
+        function startTour() {
+            if (localStorage.getItem('tourCompleted')) {
+                return; // Skip if tour already done
+            }
+            tourOverlay.style.display = 'flex';
+            showTourStep();
+        }
+
+        function showTourStep() {
+            if (currentStep >= tourSteps.length) {
+                endTour();
+                return;
+            }
+            const step = tourSteps[currentStep];
+            tourMessage.textContent = step.message;
+            document.querySelectorAll('.highlight').forEach(el => el.classList.remove('highlight'));
+            step.element.classList.add('highlight');
+            step.element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        tourNextBtn.onclick = function() {
+            currentStep++;
+            showTourStep();
+        };
+
+        tourSkipBtn.onclick = function() {
+            endTour();
+        };
+
+        function endTour() {
+            tourOverlay.style.display = 'none';
+            document.querySelectorAll('.highlight').forEach(el => el.classList.remove('highlight'));
+            localStorage.setItem('tourCompleted', 'true');
         }
     </script>
 </body>

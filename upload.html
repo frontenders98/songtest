@@ -55,11 +55,6 @@
             font-size: 16px;
             color: #fff;
         }
-        #uploadStats {
-            font-size: 14px;
-            color: #ccc;
-            margin-top: -15px;
-        }
         #goToPlay {
             background: #000;
             color: #fff;
@@ -144,7 +139,6 @@
         </div>
         
         <p id="result"></p>
-        <p id="uploadStats"></p>
         <button id="goToPlay" onclick="goToPlay()">Go to Play</button>
     </div>
 
@@ -168,7 +162,6 @@
             const progressCircle = document.querySelector('#progressCircle circle');
             const progressText = document.getElementById('progressText');
             const result = document.getElementById('result');
-            const uploadStats = document.getElementById('uploadStats');
             const goToPlay = document.getElementById('goToPlay');
 
             if (totalFiles === 0) {
@@ -179,7 +172,6 @@
             progressContainer.style.display = 'block';
             progressContainer.classList.add('uploading');
             result.textContent = "Uploading...";
-            uploadStats.textContent = `0 of ${totalFiles} files uploaded`;
             progressText.innerHTML = `0%<span>0/${totalFiles}</span>`;
             goToPlay.style.display = 'none';
 
@@ -208,14 +200,12 @@
                     const data = JSON.parse(xhr.responseText);
                     uploadedFiles = data.length;
                     result.textContent = `${uploadedFiles} song(s) uploaded successfully!`;
-                    uploadStats.textContent = `${uploadedFiles} of ${totalFiles} files uploaded`;
                     progressText.innerHTML = `100%<span>${uploadedFiles}/${totalFiles}</span>`;
                     progressContainer.classList.remove('uploading');
                     progressContainer.style.display = 'none';
                     goToPlay.style.display = 'block';
                 } else {
                     result.textContent = `Upload failed! Status: ${xhr.status}`;
-                    uploadStats.textContent = `${uploadedFiles} of ${totalFiles} files uploaded`;
                     progressContainer.style.display = 'none';
                     progressContainer.classList.remove('uploading');
                 }
@@ -223,7 +213,6 @@
 
             xhr.onerror = function() {
                 result.textContent = "Upload failed! Server error.";
-                uploadStats.textContent = `${uploadedFiles} of ${totalFiles} files uploaded`;
                 progressContainer.style.display = 'none';
                 progressContainer.classList.remove('uploading');
             };
