@@ -24,17 +24,23 @@
             text-align: center;
             max-height: 90vh;
         }
+        #playPauseContainer {
+            position: relative;
+            width: 100px;
+            height: 100px;
+            margin: 40px auto;
+        }
         #playPauseBtn {
             background: none;
             color: #fff !important;
             border: none;
-            width: 100px;
-            height: 100px;
+            width: 100%;
+            height: 100%;
             font-size: 40px;
             cursor: pointer;
             transition: all 0.3s ease;
-            margin: 40px auto;
-            display: block;
+            position: relative;
+            z-index: 2;
         }
         #playPauseBtn:hover {
             transform: scale(1.1);
@@ -46,6 +52,24 @@
             0% { text-shadow: 0 0 0 rgba(255, 255, 255, 0.9); }
             50% { text-shadow: 0 0 30px rgba(255, 255, 255, 0.7); }
             100% { text-shadow: 0 0 0 rgba(255, 255, 255, 0); }
+        }
+        #progressRing {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+            z-index: 1;
+        }
+        #progressRing circle {
+            fill: none;
+            stroke: #fff;
+            stroke-width: 4;
+            stroke-linecap: round;
+            stroke-dasharray: 283;
+            stroke-dashoffset: 283;
+            transition: stroke-dashoffset 0.1s linear;
         }
         #uploadBtn, #durationBtn {
             background: none;
@@ -62,12 +86,8 @@
             align-items: center;
             justify-content: center;
         }
-        #uploadBtn {
-            left: 20px;
-        }
-        #durationBtn {
-            left: 70px;
-        }
+        #uploadBtn { left: 20px; }
+        #durationBtn { left: 70px; }
         #uploadBtn:hover, #durationBtn:hover {
             transform: scale(1.1);
         }
@@ -95,6 +115,21 @@
             background: #fff;
             color: #000;
         }
+        #songSearch {
+            background: #000;
+            color: #fff;
+            border: 1px solid #333;
+            padding: 8px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-size: 16px;
+            width: 60%;
+            transition: all 0.3s ease;
+        }
+        #songSearch:focus {
+            outline: none;
+            border-color: #fff;
+        }
         #songSelect {
             background: #000;
             color: #fff;
@@ -109,6 +144,8 @@
             display: inline-block;
             vertical-align: middle;
             appearance: none;
+            max-height: 200px;
+            overflow-y: auto;
         }
         #songSelect:hover {
             background: #fff;
@@ -116,6 +153,10 @@
         }
         #songSelect:focus {
             outline: none;
+        }
+        #songSelect option.highlighted {
+            background: #333;
+            color: #fff;
         }
         #submitBtn, #nextBtn {
             background: #000;
@@ -130,9 +171,7 @@
             display: inline-block;
             vertical-align: middle;
         }
-        #nextBtn {
-            margin: 0 0 0 10px;
-        }
+        #nextBtn { margin: 0 0 0 10px; }
         #submitBtn:hover, #nextBtn:hover {
             background: #fff;
             color: #000;
@@ -170,7 +209,12 @@
 <body>
     <div class="container">
         <audio id="audio-player"></audio>
-        <button id="playPauseBtn"><i class="fas fa-play"></i></button>
+        <div id="playPauseContainer">
+            <button id="playPauseBtn"><i class="fas fa-play"></i></button>
+            <svg id="progressRing">
+                <circle cx="50" cy="50" r="45"></circle>
+            </svg>
+        </div>
         <button id="uploadBtn" title="Upload Songs"><i class="fas fa-upload"></i></button>
         <button id="durationBtn" title="Set Clip Duration"><i class="fas fa-clock"></i></button>
         <div id="durationMenu">
@@ -179,6 +223,7 @@
             <button onclick="setClipDuration(30)">30s</button>
         </div>
         
+        <input type="text" id="songSearch" placeholder="Search by first letter...">
         <div id="buttonGroup">
             <select id="songSelect">
                 <option value="">Select a song...</option>
@@ -199,32 +244,58 @@
         let timeoutId = null;
         const audio = document.getElementById("audio-player");
         const playPauseBtn = document.getElementById("playPauseBtn");
+        const progressCircle = document.querySelector('#progressRing circle');
         const nextBtn = document.getElementById("nextBtn");
         const uploadBtn = document.getElementById("uploadBtn");
         const durationBtn = document.getElementById("durationBtn");
         const durationMenu = document.getElementById("durationMenu");
         const songSelect = document.getElementById("songSelect");
+        const songSearch = document.getElementById("songSearch");
         const result = document.getElementById("result");
         const correctAnswer = document.getElementById("correctAnswer");
 
-        fetch('/songs')
+        let sessionId = localStorage.getItem('sessionId');
+        if (!sessionId) {
+            sessionId = Math.random().toString(36).substring(2);
+            localStorage.setItem('sessionId', sessionId);
+        }
+
+        fetch('/songs', {
+            headers: { 'X-Session-Id': sessionId }
+        })
             .then(res => res.json())
             .then(data => {
-                songs = data;
+                songs = data.sort((a, b) => a.title.localeCompare(b.title)); // Alphabetical sort
                 updateSongList();
                 if (songs.length > 0) prepareNextQuiz();
             })
             .catch(err => console.error('Error fetching songs:', err));
 
-        function updateSongList() {
+        function updateSongList(filter = '') {
             songSelect.innerHTML = '<option value="">Select a song...</option>';
             songs.forEach(song => {
-                const option = document.createElement("option");
-                option.value = song.title;
-                option.textContent = song.title;
-                songSelect.appendChild(option);
+                if (!filter || song.title.toLowerCase().startsWith(filter.toLowerCase())) {
+                    const option = document.createElement("option");
+                    option.value = song.title;
+                    option.textContent = song.title;
+                    if (filter && song.title.toLowerCase().startsWith(filter.toLowerCase())) {
+                        option.classList.add('highlighted');
+                    }
+                    songSelect.appendChild(option);
+                }
             });
+            if (filter) {
+                const firstMatch = songSelect.querySelector('option.highlighted');
+                if (firstMatch) {
+                    firstMatch.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                    songSelect.value = firstMatch.value; // Auto-select first match
+                }
+            }
         }
+
+        songSearch.addEventListener('input', (e) => {
+            updateSongList(e.target.value);
+        });
 
         function prepareNextQuiz() {
             if (songs.length === 0) {
@@ -238,14 +309,16 @@
             }
             playPauseBtn.innerHTML = '<i class="fas fa-play"></i>';
             playPauseBtn.classList.remove("playing");
+            progressCircle.style.strokeDashoffset = 283;
             songSelect.style.background = "#000";
             songSelect.style.color = "#fff";
             result.textContent = "";
             correctAnswer.textContent = "";
 
             currentSong = songs[Math.floor(Math.random() * songs.length)];
-            audio.src = `/uploads/${currentSong.file}`; // Session-specific path
-            audio.onloadedmetadata = function() {
+            audio.src = `/uploads/${currentSong.file}`;
+            audio.preload = 'auto';
+            audio.oncanplay = function() {
                 if (audio.duration < clipDuration) {
                     clipStartTime = 0;
                     clipDuration = audio.duration;
@@ -254,7 +327,34 @@
                 }
                 audio.currentTime = clipStartTime;
                 songSelect.value = "";
+                audio.play();
+                playPauseBtn.innerHTML = '<i class="fas fa-pause"></i>';
+                playPauseBtn.classList.add("playing");
+                startPlaybackProgress();
             };
+        }
+
+        function startPlaybackProgress() {
+            if (timeoutId) clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => {
+                audio.pause();
+                playPauseBtn.innerHTML = '<i class="fas fa-play"></i>';
+                playPauseBtn.classList.remove("playing");
+                progressCircle.style.strokeDashoffset = 283;
+                timeoutId = null;
+            }, clipDuration * 1000);
+
+            const start = Date.now();
+            function updateProgress() {
+                if (!audio.paused) {
+                    const elapsed = (Date.now() - start) / 1000;
+                    const progress = Math.min(elapsed / clipDuration, 1);
+                    const dashOffset = 283 - (283 * progress);
+                    progressCircle.style.strokeDashoffset = dashOffset;
+                    requestAnimationFrame(updateProgress);
+                }
+            }
+            requestAnimationFrame(updateProgress);
         }
 
         playPauseBtn.onclick = function() {
@@ -263,13 +363,7 @@
                 audio.play();
                 playPauseBtn.innerHTML = '<i class="fas fa-pause"></i>';
                 playPauseBtn.classList.add("playing");
-                if (timeoutId) clearTimeout(timeoutId);
-                timeoutId = setTimeout(() => {
-                    audio.pause();
-                    playPauseBtn.innerHTML = '<i class="fas fa-play"></i>';
-                    playPauseBtn.classList.remove("playing");
-                    timeoutId = null;
-                }, clipDuration * 1000);
+                startPlaybackProgress();
             } else if (!audio.paused) {
                 audio.pause();
                 playPauseBtn.innerHTML = '<i class="fas fa-play"></i>';
