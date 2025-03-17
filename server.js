@@ -7,19 +7,16 @@ const session = require('express-session');
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Middleware for static files and caching
 app.use(express.static(__dirname, { maxAge: '1d' }));
 app.use('/uploads', express.static('uploads', { maxAge: '1d' }));
 
-// Session middleware
 app.use(session({
-    secret: 'your-secret-key', // Change this to something unique!
+    secret: 'XTC9nBPVsF', // Change this!
     resave: false,
     saveUninitialized: true,
-    cookie: { secure: false } // Set to true if using HTTPS
+    cookie: { secure: false } // Set to true if HTTPS
 }));
 
-// Multer setup for file uploads
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         const clientSessionId = req.headers['x-session-id'] || req.session.id;
@@ -35,15 +32,21 @@ const storage = multer.diskStorage({
 });
 const upload = multer({
     storage,
-    limits: { fileSize: 50 * 1024 * 1024, files: 500 } // 50MB per file, 500 files max
+    limits: { fileSize: 50 * 1024 * 1024, files: 500 },
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype === 'audio/mpeg') {
+            cb(null, true);
+        } else {
+            cb(null, false); // Silently skip non-MP3 files
+        }
+    }
 }).array('songs');
 
-// Endpoint to get songs list
 app.get('/songs', (req, res) => {
     const clientSessionId = req.headers['x-session-id'] || req.session.id;
     const songsFile = `songs-${clientSessionId}.json`;
     if (!fs.existsSync(songsFile)) {
-        return res.json([]); // Return empty array if no songs yet
+        return res.json([]);
     }
     try {
         const songs = JSON.parse(fs.readFileSync(songsFile, 'utf8'));
@@ -55,16 +58,19 @@ app.get('/songs', (req, res) => {
     }
 });
 
-// Endpoint to handle song uploads
 app.post('/upload', (req, res) => {
     upload(req, res, (err) => {
-        if (err) {
-            console.error('Upload error:', err);
-            return res.status(400).json({ error: 'Upload failed' });
+        if (err instanceof multer.MulterError) {
+            console.error('Multer error:', err);
+            return res.status(400).json({ error: 'Upload failed: Too many files or file too large' });
+        } else if (err) {
+            console.error('Unexpected error:', err);
+            return res.status(500).json({ error: 'Upload failed: Server error' });
         }
         if (!req.files || req.files.length === 0) {
-            return res.status(400).json({ error: 'No files uploaded' });
+            return res.status(400).json({ error: 'No valid MP3 files uploaded' });
         }
+
         const clientSessionId = req.headers['x-session-id'] || req.session.id;
         const songsFile = `songs-${clientSessionId}.json`;
         let songs = [];
@@ -75,32 +81,33 @@ app.post('/upload', (req, res) => {
                 console.error('Error parsing existing songs file:', e);
             }
         }
+
         const newSongs = req.files.map(file => ({
             title: file.originalname.replace('.mp3', ''),
-            file: `${clientSessionId}/${file.filename}` // Relative path for playback
+            file: `${clientSessionId}/${file.filename}`
         }));
+
         newSongs.forEach(newSong => {
             if (!songs.some(song => song.title.toLowerCase() === newSong.title.toLowerCase())) {
                 songs.push(newSong);
             }
         });
+
         try {
             fs.writeFileSync(songsFile, JSON.stringify(songs, null, 2));
             const uniqueSongs = Array.from(new Map(songs.map(song => [song.title.toLowerCase(), song])).values());
-            res.json(uniqueSongs);
+            res.json(uniqueSongs); // Respond immediately after writing
         } catch (err) {
             console.error('Error writing songs file:', err);
-            res.status(500).json([]);
+            res.status(500).json({ error: 'Failed to save songs' });
         }
     });
 });
 
-// Root URL redirects to play.html
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'play.html'));
 });
 
-// Start the server
 app.listen(port, '0.0.0.0', () => {
     console.log(`Server running at http://localhost:${port}`);
 });

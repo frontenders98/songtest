@@ -260,20 +260,20 @@
 
         function updateSongList(filter = '') {
             songSelect.innerHTML = '<option value="">Select a song...</option>';
+            const keywords = filter.toLowerCase().trim().split(/\s+/);
+            const filteredSongs = songs.filter(song => 
+                keywords.every(keyword => song.title.toLowerCase().includes(keyword))
+            );
             let firstMatch = null;
-            songs.forEach(song => {
+            filteredSongs.forEach(song => {
                 const option = document.createElement("option");
                 option.value = song.title;
                 option.textContent = song.title;
-                if (filter && song.title.toLowerCase().startsWith(filter.toLowerCase())) {
-                    if (!firstMatch) {
-                        firstMatch = option;
-                        option.classList.add('highlighted');
-                    }
-                    songSelect.insertBefore(option, songSelect.options[1]);
-                } else {
-                    songSelect.appendChild(option);
+                if (!firstMatch && filter && keywords.every(keyword => song.title.toLowerCase().includes(keyword))) {
+                    firstMatch = option;
+                    option.classList.add('highlighted');
                 }
+                songSelect.appendChild(option);
             });
             if (firstMatch) {
                 songSelect.value = firstMatch.value;
@@ -283,7 +283,11 @@
 
         let lastSearch = '';
         songSelect.addEventListener('keydown', (e) => {
-            if (e.key.length === 1) {
+            if (e.key === 'Enter') {
+                e.preventDefault(); // Prevent dropdown from submitting
+                return;
+            }
+            if (e.key.length === 1 || e.key === ' ') {
                 lastSearch += e.key;
                 updateSongList(lastSearch);
             } else if (e.key === 'Backspace') {
