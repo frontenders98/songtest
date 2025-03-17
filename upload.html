@@ -55,6 +55,11 @@
             font-size: 16px;
             color: #fff;
         }
+        #uploadStats {
+            font-size: 14px;
+            color: #ccc;
+            margin-top: -15px;
+        }
         #goToPlay {
             background: #000;
             color: #fff;
@@ -98,8 +103,14 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            font-size: 18px;
+            font-size: 16px;
             color: #fff;
+            text-align: center;
+        }
+        #progressText span {
+            display: block;
+            font-size: 12px;
+            margin-top: 2px;
         }
         #progressContainer.uploading {
             animation: pulseGlow 1.5s infinite;
@@ -123,16 +134,17 @@
             <i class="fas fa-folder-open"></i>
             <span>Upload Folder</span>
         </div>
-        <input type="file" id="folderInput" webkitdirectory directory multiple accept=".mp3">
+        <input type="file" id="folderInput" webkitdirectory mozdirectory directory multiple accept=".mp3">
         
         <div id="progressContainer">
             <svg id="progressCircle">
                 <circle cx="50" cy="50" r="45"></circle>
             </svg>
-            <div id="progressText">0%</div>
+            <div id="progressText">0%<span>0/0</span></div>
         </div>
         
         <p id="result"></p>
+        <p id="uploadStats"></p>
         <button id="goToPlay" onclick="goToPlay()">Go to Play</button>
     </div>
 
@@ -144,15 +156,25 @@
             }
 
             const formData = new FormData();
+            const totalFiles = Array.from(files).filter(file => file.type === 'audio/mpeg').length;
+            let uploadedFiles = 0;
             const progressContainer = document.getElementById('progressContainer');
             const progressCircle = document.querySelector('#progressCircle circle');
             const progressText = document.getElementById('progressText');
             const result = document.getElementById('result');
+            const uploadStats = document.getElementById('uploadStats');
             const goToPlay = document.getElementById('goToPlay');
+
+            if (totalFiles === 0) {
+                result.textContent = "No valid MP3 files selected!";
+                return;
+            }
 
             progressContainer.style.display = 'block';
             progressContainer.classList.add('uploading');
             result.textContent = "Uploading...";
+            uploadStats.textContent = `0 of ${totalFiles} files uploaded`;
+            progressText.innerHTML = `0%<span>0/${totalFiles}</span>`;
             goToPlay.style.display = 'none';
 
             for (let file of files) {
@@ -167,21 +189,26 @@
             xhr.upload.onprogress = function(event) {
                 if (event.lengthComputable) {
                     const percentComplete = (event.loaded / event.total) * 100;
+                    uploadedFiles = Math.round((percentComplete / 100) * totalFiles); // Estimate based on progress
                     const dashOffset = 283 - (283 * percentComplete / 100);
                     progressCircle.style.strokeDashoffset = dashOffset;
-                    progressText.textContent = `${Math.round(percentComplete)}%`;
+                    progressText.innerHTML = `${Math.round(percentComplete)}%<span>${uploadedFiles}/${totalFiles}</span>`;
                 }
             };
 
             xhr.onload = function() {
                 if (xhr.status === 200) {
                     const data = JSON.parse(xhr.responseText);
-                    result.textContent = `${data.length} song(s) uploaded successfully!`;
+                    uploadedFiles = data.length; // Actual count from server
+                    result.textContent = `${uploadedFiles} song(s) uploaded successfully!`;
+                    uploadStats.textContent = `${uploadedFiles} of ${totalFiles} files uploaded`;
+                    progressText.innerHTML = `100%<span>${uploadedFiles}/${totalFiles}</span>`;
                     progressContainer.classList.remove('uploading');
                     progressContainer.style.display = 'none';
                     goToPlay.style.display = 'block';
                 } else {
                     result.textContent = "Upload failed!";
+                    uploadStats.textContent = `${uploadedFiles} of ${totalFiles} files uploaded`;
                     progressContainer.style.display = 'none';
                     progressContainer.classList.remove('uploading');
                 }
@@ -189,6 +216,7 @@
 
             xhr.onerror = function() {
                 result.textContent = "Upload failed! Server error.";
+                uploadStats.textContent = `${uploadedFiles} of ${totalFiles} files uploaded`;
                 progressContainer.style.display = 'none';
                 progressContainer.classList.remove('uploading');
             };

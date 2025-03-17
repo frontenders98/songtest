@@ -140,8 +140,8 @@
             outline: none;
         }
         #songSelect option.highlighted {
-            background: #333;
-            color: #fff;
+            background: #fff;
+            color: #000;
         }
         #submitBtn, #nextBtn {
             background: #000;
@@ -249,7 +249,7 @@
         })
             .then(res => res.json())
             .then(data => {
-                songs = data.sort((a, b) => a.title.localeCompare(b.title)); // Alphabetical sort
+                songs = data.sort((a, b) => a.title.localeCompare(b.title));
                 updateSongList();
                 if (songs.length > 0) prepareNextQuiz();
             })
@@ -257,27 +257,32 @@
 
         function updateSongList(filter = '') {
             songSelect.innerHTML = '<option value="">Select a song...</option>';
+            let firstMatch = null;
             songs.forEach(song => {
-                if (!filter || song.title.toLowerCase().startsWith(filter.toLowerCase())) {
-                    const option = document.createElement("option");
-                    option.value = song.title;
-                    option.textContent = song.title;
+                const option = document.createElement("option");
+                option.value = song.title;
+                option.textContent = song.title;
+                if (filter && song.title.toLowerCase().startsWith(filter.toLowerCase())) {
+                    if (!firstMatch) {
+                        firstMatch = option;
+                        option.classList.add('highlighted');
+                    }
+                    songSelect.insertBefore(option, songSelect.options[1]); // Move to top
+                } else {
                     songSelect.appendChild(option);
                 }
             });
+            if (firstMatch) {
+                songSelect.value = firstMatch.value;
+                firstMatch.scrollIntoView({ block: 'nearest' });
+            }
         }
 
         let lastSearch = '';
         songSelect.addEventListener('keydown', (e) => {
-            if (e.key.length === 1) { // Only single letters
+            if (e.key.length === 1) {
                 lastSearch += e.key;
                 updateSongList(lastSearch);
-                const firstMatch = Array.from(songSelect.options).find(opt => 
-                    opt.value.toLowerCase().startsWith(lastSearch.toLowerCase())
-                );
-                if (firstMatch) {
-                    songSelect.value = firstMatch.value;
-                }
             } else if (e.key === 'Backspace') {
                 lastSearch = lastSearch.slice(0, -1);
                 updateSongList(lastSearch);
@@ -289,27 +294,23 @@
                 result.textContent = "No songs available! Upload some first.";
                 return;
             }
-            audio.pause(); // Stop any playing audio
-            if (timeoutId) {
-                clearTimeout(timeoutId);
-                timeoutId = null;
-            }
-            if (animationFrameId) {
-                cancelAnimationFrame(animationFrameId);
-                animationFrameId = null;
-            }
+            audio.pause();
+            if (timeoutId) clearTimeout(timeoutId);
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            timeoutId = null;
+            animationFrameId = null;
             playPauseBtn.innerHTML = '<i class="fas fa-play"></i>';
             playPauseBtn.classList.remove("playing");
-            progressCircle.style.strokeDashoffset = 283; // Reset progress
+            progressCircle.style.strokeDashoffset = 283;
             songSelect.style.background = "#000";
             songSelect.style.color = "#fff";
             result.textContent = "";
             correctAnswer.textContent = "";
-            lastSearch = ''; // Reset search
+            lastSearch = '';
 
             currentSong = songs[Math.floor(Math.random() * songs.length)];
             audio.src = `/uploads/${currentSong.file}`;
-            audio.preload = 'auto';
+            audio.preload = 'metadata'; // Faster than 'auto', just enough for duration
             audio.onloadedmetadata = function() {
                 if (audio.duration < clipDuration) {
                     clipStartTime = 0;
@@ -319,7 +320,7 @@
                 }
                 audio.currentTime = clipStartTime;
                 songSelect.value = "";
-                playSong(); // Play immediately after loading
+                playSong();
             };
         }
 
@@ -362,14 +363,10 @@
                 audio.pause();
                 playPauseBtn.innerHTML = '<i class="fas fa-play"></i>';
                 playPauseBtn.classList.remove("playing");
-                if (timeoutId) {
-                    clearTimeout(timeoutId);
-                    timeoutId = null;
-                }
-                if (animationFrameId) {
-                    cancelAnimationFrame(animationFrameId);
-                    animationFrameId = null;
-                }
+                if (timeoutId) clearTimeout(timeoutId);
+                if (animationFrameId) cancelAnimationFrame(animationFrameId);
+                timeoutId = null;
+                animationFrameId = null;
             }
         };
 

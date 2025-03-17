@@ -8,7 +8,7 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 app.use(session({
-    secret: 'your-secret-key', // Update this!
+    secret: 'XTC9nBPVsF', // Change this!
     resave: false,
     saveUninitialized: true,
     cookie: { secure: false } // Set to true if HTTPS
@@ -16,7 +16,8 @@ app.use(session({
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        const uploadDir = `./uploads/${req.session.id}`;
+        const clientSessionId = req.headers['x-session-id'] || req.session.id; // Use client-provided ID if available
+        const uploadDir = `./uploads/${clientSessionId}`;
         if (!fs.existsSync(uploadDir)) {
             fs.mkdirSync(uploadDir, { recursive: true });
         }
@@ -35,7 +36,8 @@ app.use(express.static(__dirname));
 app.use('/uploads', express.static('uploads'));
 
 app.get('/songs', (req, res) => {
-    const songsFile = `songs-${req.session.id}.json`;
+    const clientSessionId = req.headers['x-session-id'] || req.session.id;
+    const songsFile = `songs-${clientSessionId}.json`;
     let songs = [];
     if (fs.existsSync(songsFile)) {
         songs = JSON.parse(fs.readFileSync(songsFile, 'utf8'));
@@ -48,14 +50,15 @@ app.post('/upload', upload.array('songs'), (req, res) => {
     if (!req.files || req.files.length === 0) {
         return res.status(400).json({ error: 'No files uploaded' });
     }
-    const songsFile = `songs-${req.session.id}.json`;
+    const clientSessionId = req.headers['x-session-id'] || req.session.id;
+    const songsFile = `songs-${clientSessionId}.json`;
     let songs = [];
     if (fs.existsSync(songsFile)) {
         songs = JSON.parse(fs.readFileSync(songsFile, 'utf8'));
     }
     const newSongs = req.files.map(file => ({
         title: file.originalname.replace('.mp3', ''),
-        file: `${req.session.id}/${file.filename}`
+        file: `${clientSessionId}/${file.filename}`
     }));
     newSongs.forEach(newSong => {
         if (!songs.some(song => song.title.toLowerCase() === newSong.title.toLowerCase())) {
@@ -67,7 +70,6 @@ app.post('/upload', upload.array('songs'), (req, res) => {
     res.json(uniqueSongs);
 });
 
-// Add this new route
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'upload.html'));
 });
