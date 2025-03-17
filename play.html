@@ -115,21 +115,6 @@
             background: #fff;
             color: #000;
         }
-        #songSearch {
-            background: #000;
-            color: #fff;
-            border: 1px solid #333;
-            padding: 8px;
-            margin: 10px 0;
-            border-radius: 5px;
-            font-size: 16px;
-            width: 60%;
-            transition: all 0.3s ease;
-        }
-        #songSearch:focus {
-            outline: none;
-            border-color: #fff;
-        }
         #songSelect {
             background: #000;
             color: #fff;
@@ -223,7 +208,6 @@
             <button onclick="setClipDuration(30)">30s</button>
         </div>
         
-        <input type="text" id="songSearch" placeholder="Search by first letter...">
         <div id="buttonGroup">
             <select id="songSelect">
                 <option value="">Select a song...</option>
@@ -242,6 +226,7 @@
         let clipStartTime = 0;
         let clipDuration = 20;
         let timeoutId = null;
+        let animationFrameId = null;
         const audio = document.getElementById("audio-player");
         const playPauseBtn = document.getElementById("playPauseBtn");
         const progressCircle = document.querySelector('#progressRing circle');
@@ -250,7 +235,6 @@
         const durationBtn = document.getElementById("durationBtn");
         const durationMenu = document.getElementById("durationMenu");
         const songSelect = document.getElementById("songSelect");
-        const songSearch = document.getElementById("songSearch");
         const result = document.getElementById("result");
         const correctAnswer = document.getElementById("correctAnswer");
 
@@ -278,23 +262,26 @@
                     const option = document.createElement("option");
                     option.value = song.title;
                     option.textContent = song.title;
-                    if (filter && song.title.toLowerCase().startsWith(filter.toLowerCase())) {
-                        option.classList.add('highlighted');
-                    }
                     songSelect.appendChild(option);
                 }
             });
-            if (filter) {
-                const firstMatch = songSelect.querySelector('option.highlighted');
-                if (firstMatch) {
-                    firstMatch.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-                    songSelect.value = firstMatch.value; // Auto-select first match
-                }
-            }
         }
 
-        songSearch.addEventListener('input', (e) => {
-            updateSongList(e.target.value);
+        let lastSearch = '';
+        songSelect.addEventListener('keydown', (e) => {
+            if (e.key.length === 1) { // Only single letters
+                lastSearch += e.key;
+                updateSongList(lastSearch);
+                const firstMatch = Array.from(songSelect.options).find(opt => 
+                    opt.value.toLowerCase().startsWith(lastSearch.toLowerCase())
+                );
+                if (firstMatch) {
+                    songSelect.value = firstMatch.value;
+                }
+            } else if (e.key === 'Backspace') {
+                lastSearch = lastSearch.slice(0, -1);
+                updateSongList(lastSearch);
+            }
         });
 
         function prepareNextQuiz() {
@@ -302,23 +289,28 @@
                 result.textContent = "No songs available! Upload some first.";
                 return;
             }
-            audio.pause();
+            audio.pause(); // Stop any playing audio
             if (timeoutId) {
                 clearTimeout(timeoutId);
                 timeoutId = null;
             }
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
             playPauseBtn.innerHTML = '<i class="fas fa-play"></i>';
             playPauseBtn.classList.remove("playing");
-            progressCircle.style.strokeDashoffset = 283;
+            progressCircle.style.strokeDashoffset = 283; // Reset progress
             songSelect.style.background = "#000";
             songSelect.style.color = "#fff";
             result.textContent = "";
             correctAnswer.textContent = "";
+            lastSearch = ''; // Reset search
 
             currentSong = songs[Math.floor(Math.random() * songs.length)];
             audio.src = `/uploads/${currentSong.file}`;
             audio.preload = 'auto';
-            audio.oncanplay = function() {
+            audio.onloadedmetadata = function() {
                 if (audio.duration < clipDuration) {
                     clipStartTime = 0;
                     clipDuration = audio.duration;
@@ -327,11 +319,16 @@
                 }
                 audio.currentTime = clipStartTime;
                 songSelect.value = "";
-                audio.play();
+                playSong(); // Play immediately after loading
+            };
+        }
+
+        function playSong() {
+            audio.play().then(() => {
                 playPauseBtn.innerHTML = '<i class="fas fa-pause"></i>';
                 playPauseBtn.classList.add("playing");
                 startPlaybackProgress();
-            };
+            }).catch(err => console.error('Playback failed:', err));
         }
 
         function startPlaybackProgress() {
@@ -351,19 +348,16 @@
                     const progress = Math.min(elapsed / clipDuration, 1);
                     const dashOffset = 283 - (283 * progress);
                     progressCircle.style.strokeDashoffset = dashOffset;
-                    requestAnimationFrame(updateProgress);
+                    animationFrameId = requestAnimationFrame(updateProgress);
                 }
             }
-            requestAnimationFrame(updateProgress);
+            animationFrameId = requestAnimationFrame(updateProgress);
         }
 
         playPauseBtn.onclick = function() {
             if (audio.paused && currentSong) {
                 audio.currentTime = clipStartTime;
-                audio.play();
-                playPauseBtn.innerHTML = '<i class="fas fa-pause"></i>';
-                playPauseBtn.classList.add("playing");
-                startPlaybackProgress();
+                playSong();
             } else if (!audio.paused) {
                 audio.pause();
                 playPauseBtn.innerHTML = '<i class="fas fa-play"></i>';
@@ -371,6 +365,10 @@
                 if (timeoutId) {
                     clearTimeout(timeoutId);
                     timeoutId = null;
+                }
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                    animationFrameId = null;
                 }
             }
         };
