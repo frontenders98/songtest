@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Play</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background: #000;
+            color: #fff;
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            overflow-y: auto;
+        }
+        .container {
+            padding: 40px;
+            width: 500px;
+            text-align: center;
+            max-height: 90vh;
+        }
+        #playPauseBtn {
+            background: none;
+            color: #fff !important;
+            border: none;
+            width: 100px;
+            height: 100px;
+            font-size: 40px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 40px auto;
+            display: block;
+        }
+        #playPauseBtn:hover {
+            transform: scale(1.1);
+        }
+        #playPauseBtn.playing {
+            animation: loudPulse 1s infinite;
+        }
+        @keyframes loudPulse {
+            0% { text-shadow: 0 0 0 rgba(255, 255, 255, 0.9); }
+            50% { text-shadow: 0 0 30px rgba(255, 255, 255, 0.7); }
+            100% { text-shadow: 0 0 0 rgba(255, 255, 255, 0); }
+        }
+        #uploadBtn, #durationBtn {
+            background: none;
+            color: #fff;
+            border: none;
+            width: 40px;
+            height: 40px;
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: absolute;
+            top: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #uploadBtn {
+            left: 20px;
+        }
+        #durationBtn {
+            left: 70px;
+        }
+        #uploadBtn:hover, #durationBtn:hover {
+            transform: scale(1.1);
+        }
+        #durationMenu {
+            display: none;
+            position: absolute;
+            top: 50px;
+            left: 70px;
+            background: #000;
+            border: 1px solid #333;
+            border-radius: 5px;
+            padding: 5px 0;
+        }
+        #durationMenu button {
+            background: #000;
+            color: #fff;
+            border: none;
+            padding: 8px 15px;
+            width: 100%;
+            text-align: left;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        #durationMenu button:hover {
+            background: #fff;
+            color: #000;
+        }
+        #songSelect {
+            background: #000;
+            color: #fff;
+            border: 1px solid #333;
+            padding: 10px;
+            margin: 0 10px 0 0;
+            border-radius: 5px;
+            font-size: 18px;
+            width: 60%;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-block;
+            vertical-align: middle;
+            appearance: none;
+        }
+        #songSelect:hover {
+            background: #fff;
+            color: #000;
+        }
+        #songSelect:focus {
+            outline: none;
+        }
+        #submitBtn, #nextBtn {
+            background: #000;
+            color: #fff;
+            border: 1px solid #333;
+            padding: 10px 20px;
+            margin: 0 10px 0 0;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        #nextBtn {
+            margin: 0 0 0 10px;
+        }
+        #submitBtn:hover, #nextBtn:hover {
+            background: #fff;
+            color: #000;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+            transform: scale(1.05);
+        }
+        #buttonGroup {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+        }
+        #result {
+            margin: 20px 0;
+            font-size: 18px;
+            color: #fff;
+            height: 20px;
+            transition: all 0.5s ease;
+        }
+        #result.correct #songSelect {
+            background: #00ff00;
+            color: #000;
+        }
+        #result.wrong #songSelect {
+            background: #ff0000;
+            color: #000;
+        }
+        #correctAnswer {
+            margin-top: 10px;
+            font-size: 16px;
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <audio id="audio-player"></audio>
+        <button id="playPauseBtn"><i class="fas fa-play"></i></button>
+        <button id="uploadBtn" title="Upload Songs"><i class="fas fa-upload"></i></button>
+        <button id="durationBtn" title="Set Clip Duration"><i class="fas fa-clock"></i></button>
+        <div id="durationMenu">
+            <button onclick="setClipDuration(15)">15s</button>
+            <button onclick="setClipDuration(20)">20s</button>
+            <button onclick="setClipDuration(30)">30s</button>
+        </div>
+        
+        <div id="buttonGroup">
+            <select id="songSelect">
+                <option value="">Select a song...</option>
+            </select>
+            <button id="submitBtn" onclick="checkAnswer()">Submit</button>
+            <button id="nextBtn" onclick="prepareNextQuiz()">Next</button>
+        </div>
+        
+        <p id="result"></p>
+        <p id="correctAnswer"></p>
+    </div>
+
+    <script>
+        let songs = [];
+        let currentSong = null;
+        let clipStartTime = 0;
+        let clipDuration = 20;
+        let timeoutId = null;
+        const audio = document.getElementById("audio-player");
+        const playPauseBtn = document.getElementById("playPauseBtn");
+        const nextBtn = document.getElementById("nextBtn");
+        const uploadBtn = document.getElementById("uploadBtn");
+        const durationBtn = document.getElementById("durationBtn");
+        const durationMenu = document.getElementById("durationMenu");
+        const songSelect = document.getElementById("songSelect");
+        const result = document.getElementById("result");
+        const correctAnswer = document.getElementById("correctAnswer");
+
+        fetch('/songs')
+            .then(res => res.json())
+            .then(data => {
+                songs = data;
+                updateSongList();
+                if (songs.length > 0) prepareNextQuiz();
+            })
+            .catch(err => console.error('Error fetching songs:', err));
+
+        function updateSongList() {
+            songSelect.innerHTML = '<option value="">Select a song...</option>';
+            songs.forEach(song => {
+                const option = document.createElement("option");
+                option.value = song.title;
+                option.textContent = song.title;
+                songSelect.appendChild(option);
+            });
+        }
+
+        function prepareNextQuiz() {
+            if (songs.length === 0) {
+                result.textContent = "No songs available! Upload some first.";
+                return;
+            }
+            audio.pause();
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+                timeoutId = null;
+            }
+            playPauseBtn.innerHTML = '<i class="fas fa-play"></i>';
+            playPauseBtn.classList.remove("playing");
+            songSelect.style.background = "#000";
+            songSelect.style.color = "#fff";
+            result.textContent = "";
+            correctAnswer.textContent = "";
+
+            currentSong = songs[Math.floor(Math.random() * songs.length)];
+            audio.src = `/uploads/${currentSong.file}`; // Session-specific path
+            audio.onloadedmetadata = function() {
+                if (audio.duration < clipDuration) {
+                    clipStartTime = 0;
+                    clipDuration = audio.duration;
+                } else {
+                    clipStartTime = Math.random() * (audio.duration - clipDuration);
+                }
+                audio.currentTime = clipStartTime;
+                songSelect.value = "";
+            };
+        }
+
+        playPauseBtn.onclick = function() {
+            if (audio.paused && currentSong) {
+                audio.currentTime = clipStartTime;
+                audio.play();
+                playPauseBtn.innerHTML = '<i class="fas fa-pause"></i>';
+                playPauseBtn.classList.add("playing");
+                if (timeoutId) clearTimeout(timeoutId);
+                timeoutId = setTimeout(() => {
+                    audio.pause();
+                    playPauseBtn.innerHTML = '<i class="fas fa-play"></i>';
+                    playPauseBtn.classList.remove("playing");
+                    timeoutId = null;
+                }, clipDuration * 1000);
+            } else if (!audio.paused) {
+                audio.pause();
+                playPauseBtn.innerHTML = '<i class="fas fa-play"></i>';
+                playPauseBtn.classList.remove("playing");
+                if (timeoutId) {
+                    clearTimeout(timeoutId);
+                    timeoutId = null;
+                }
+            }
+        };
+
+        uploadBtn.onclick = function() {
+            window.location.href = 'upload.html';
+        };
+
+        durationBtn.onclick = function() {
+            durationMenu.style.display = durationMenu.style.display === 'block' ? 'none' : 'block';
+        };
+
+        function setClipDuration(seconds) {
+            clipDuration = seconds;
+            durationMenu.style.display = 'none';
+            prepareNextQuiz();
+        }
+
+        document.addEventListener('click', (e) => {
+            if (!durationBtn.contains(e.target) && !durationMenu.contains(e.target)) {
+                durationMenu.style.display = 'none';
+            }
+        });
+
+        function checkAnswer() {
+            const selectedSong = songSelect.value;
+            if (!selectedSong) {
+                result.textContent = "Please select a song first!";
+                return;
+            }
+            if (selectedSong === currentSong.title) {
+                result.textContent = "Correct!";
+                result.classList.add("correct");
+                songSelect.style.background = "#00ff00";
+                songSelect.style.color = "#000";
+                correctAnswer.textContent = "";
+            } else {
+                result.textContent = "Wrong!";
+                result.classList.add("wrong");
+                songSelect.style.background = "#ff0000";
+                songSelect.style.color = "#000";
+                correctAnswer.textContent = `Correct: ${currentSong.title}`;
+            }
+        }
+    </script>
+</body>
+</html>
