@@ -227,6 +227,7 @@
         let clipDuration = 20;
         let timeoutId = null;
         let animationFrameId = null;
+        let pausedTime = 0; // Track pause position
         const audio = document.getElementById("audio-player");
         const playPauseBtn = document.getElementById("playPauseBtn");
         const progressCircle = document.querySelector('#progressRing circle');
@@ -284,7 +285,7 @@
         let lastSearch = '';
         songSelect.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
-                e.preventDefault(); // Prevent dropdown from submitting
+                e.preventDefault();
                 return;
             }
             if (e.key.length === 1 || e.key === ' ') {
@@ -314,6 +315,7 @@
             result.textContent = "";
             correctAnswer.textContent = "";
             lastSearch = '';
+            pausedTime = 0; // Reset paused time for new clip
 
             currentSong = songs[Math.floor(Math.random() * songs.length)];
             audio.src = `/uploads/${currentSong.file}`;
@@ -348,15 +350,17 @@
 
         function startPlaybackProgress() {
             if (timeoutId) clearTimeout(timeoutId);
+            const elapsedBeforePause = audio.currentTime - clipStartTime;
+            const remainingTime = clipDuration - elapsedBeforePause;
             timeoutId = setTimeout(() => {
                 audio.pause();
                 playPauseBtn.innerHTML = '<i class="fas fa-play"></i>';
                 playPauseBtn.classList.remove("playing");
                 progressCircle.style.strokeDashoffset = 283;
                 timeoutId = null;
-            }, clipDuration * 1000);
+            }, remainingTime * 1000);
 
-            const start = Date.now();
+            const start = Date.now() - (elapsedBeforePause * 1000);
             function updateProgress() {
                 if (!audio.paused) {
                     const elapsed = (Date.now() - start) / 1000;
@@ -371,10 +375,13 @@
 
         playPauseBtn.onclick = function() {
             if (audio.paused && currentSong) {
-                audio.currentTime = clipStartTime;
+                if (audio.currentTime < clipStartTime || audio.currentTime >= clipStartTime + clipDuration) {
+                    audio.currentTime = clipStartTime; // Reset only if outside clip
+                }
                 playSong();
             } else if (!audio.paused) {
                 audio.pause();
+                pausedTime = audio.currentTime;
                 playPauseBtn.innerHTML = '<i class="fas fa-play"></i>';
                 playPauseBtn.classList.remove("playing");
                 if (timeoutId) clearTimeout(timeoutId);
