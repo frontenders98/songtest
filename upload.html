@@ -149,6 +149,12 @@
     </div>
 
     <script>
+        let sessionId = localStorage.getItem('sessionId');
+        if (!sessionId) {
+            sessionId = Math.random().toString(36).substring(2);
+            localStorage.setItem('sessionId', sessionId);
+        }
+
         function uploadFiles(files) {
             if (!files || files.length === 0) {
                 document.getElementById('result').textContent = "No files selected!";
@@ -185,11 +191,12 @@
 
             const xhr = new XMLHttpRequest();
             xhr.open('POST', '/upload', true);
+            xhr.setRequestHeader('X-Session-Id', sessionId);
 
             xhr.upload.onprogress = function(event) {
                 if (event.lengthComputable) {
                     const percentComplete = (event.loaded / event.total) * 100;
-                    uploadedFiles = Math.round((percentComplete / 100) * totalFiles); // Estimate based on progress
+                    uploadedFiles = Math.round((percentComplete / 100) * totalFiles);
                     const dashOffset = 283 - (283 * percentComplete / 100);
                     progressCircle.style.strokeDashoffset = dashOffset;
                     progressText.innerHTML = `${Math.round(percentComplete)}%<span>${uploadedFiles}/${totalFiles}</span>`;
@@ -199,7 +206,7 @@
             xhr.onload = function() {
                 if (xhr.status === 200) {
                     const data = JSON.parse(xhr.responseText);
-                    uploadedFiles = data.length; // Actual count from server
+                    uploadedFiles = data.length;
                     result.textContent = `${uploadedFiles} song(s) uploaded successfully!`;
                     uploadStats.textContent = `${uploadedFiles} of ${totalFiles} files uploaded`;
                     progressText.innerHTML = `100%<span>${uploadedFiles}/${totalFiles}</span>`;
@@ -207,7 +214,7 @@
                     progressContainer.style.display = 'none';
                     goToPlay.style.display = 'block';
                 } else {
-                    result.textContent = "Upload failed!";
+                    result.textContent = `Upload failed! Status: ${xhr.status}`;
                     uploadStats.textContent = `${uploadedFiles} of ${totalFiles} files uploaded`;
                     progressContainer.style.display = 'none';
                     progressContainer.classList.remove('uploading');

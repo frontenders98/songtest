@@ -253,7 +253,10 @@
                 updateSongList();
                 if (songs.length > 0) prepareNextQuiz();
             })
-            .catch(err => console.error('Error fetching songs:', err));
+            .catch(err => {
+                console.error('Error fetching songs:', err);
+                result.textContent = "Failed to load songs!";
+            });
 
         function updateSongList(filter = '') {
             songSelect.innerHTML = '<option value="">Select a song...</option>';
@@ -267,7 +270,7 @@
                         firstMatch = option;
                         option.classList.add('highlighted');
                     }
-                    songSelect.insertBefore(option, songSelect.options[1]); // Move to top
+                    songSelect.insertBefore(option, songSelect.options[1]);
                 } else {
                     songSelect.appendChild(option);
                 }
@@ -310,7 +313,7 @@
 
             currentSong = songs[Math.floor(Math.random() * songs.length)];
             audio.src = `/uploads/${currentSong.file}`;
-            audio.preload = 'metadata'; // Faster than 'auto', just enough for duration
+            audio.preload = 'metadata';
             audio.onloadedmetadata = function() {
                 if (audio.duration < clipDuration) {
                     clipStartTime = 0;
@@ -322,6 +325,10 @@
                 songSelect.value = "";
                 playSong();
             };
+            audio.onerror = function() {
+                result.textContent = "Error loading song!";
+                console.error('Audio error:', audio.error);
+            };
         }
 
         function playSong() {
@@ -329,7 +336,10 @@
                 playPauseBtn.innerHTML = '<i class="fas fa-pause"></i>';
                 playPauseBtn.classList.add("playing");
                 startPlaybackProgress();
-            }).catch(err => console.error('Playback failed:', err));
+            }).catch(err => {
+                console.error('Playback failed:', err);
+                result.textContent = "Playback failed!";
+            });
         }
 
         function startPlaybackProgress() {
