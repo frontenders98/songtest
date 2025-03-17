@@ -8,10 +8,10 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 app.use(session({
-    secret: 'XTC9nBPVsF', // Change this before deploying!
+    secret: 'your-secret-key', // Update this!
     resave: false,
     saveUninitialized: true,
-    cookie: { secure: false } // Set to true if using HTTPS
+    cookie: { secure: false } // Set to true if HTTPS
 }));
 
 const storage = multer.diskStorage({
@@ -65,6 +65,11 @@ app.post('/upload', upload.array('songs'), (req, res) => {
     fs.writeFileSync(songsFile, JSON.stringify(songs, null, 2));
     const uniqueSongs = Array.from(new Map(songs.map(song => [song.title.toLowerCase(), song])).values());
     res.json(uniqueSongs);
+});
+
+// Add this new route
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'upload.html'));
 });
 
 app.listen(port, '0.0.0.0', () => {
