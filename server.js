@@ -7,16 +7,19 @@ const session = require('express-session');
 const app = express();
 const port = process.env.PORT || 3000;
 
+// Middleware for static files and caching
 app.use(express.static(__dirname, { maxAge: '1d' }));
 app.use('/uploads', express.static('uploads', { maxAge: '1d' }));
 
+// Session middleware
 app.use(session({
-    secret: 'XTC9nBPVsF', // Change this!
+    secret: 'your-secret-key', // Change this to something unique!
     resave: false,
     saveUninitialized: true,
-    cookie: { secure: false } // Set to true if HTTPS
+    cookie: { secure: false } // Set to true if using HTTPS
 }));
 
+// Multer setup for file uploads
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         const clientSessionId = req.headers['x-session-id'] || req.session.id;
@@ -32,14 +35,15 @@ const storage = multer.diskStorage({
 });
 const upload = multer({
     storage,
-    limits: { fileSize: 50 * 1024 * 1024, files: 500 }
+    limits: { fileSize: 50 * 1024 * 1024, files: 500 } // 50MB per file, 500 files max
 }).array('songs');
 
+// Endpoint to get songs list
 app.get('/songs', (req, res) => {
     const clientSessionId = req.headers['x-session-id'] || req.session.id;
     const songsFile = `songs-${clientSessionId}.json`;
     if (!fs.existsSync(songsFile)) {
-        return res.json([]); // Empty array if no songs yet
+        return res.json([]); // Return empty array if no songs yet
     }
     try {
         const songs = JSON.parse(fs.readFileSync(songsFile, 'utf8'));
@@ -51,6 +55,7 @@ app.get('/songs', (req, res) => {
     }
 });
 
+// Endpoint to handle song uploads
 app.post('/upload', (req, res) => {
     upload(req, res, (err) => {
         if (err) {
@@ -72,7 +77,7 @@ app.post('/upload', (req, res) => {
         }
         const newSongs = req.files.map(file => ({
             title: file.originalname.replace('.mp3', ''),
-            file: `${clientSessionId}/${file.filename}` // Relative path
+            file: `${clientSessionId}/${file.filename}` // Relative path for playback
         }));
         newSongs.forEach(newSong => {
             if (!songs.some(song => song.title.toLowerCase() === newSong.title.toLowerCase())) {
@@ -90,10 +95,12 @@ app.post('/upload', (req, res) => {
     });
 });
 
+// Root URL redirects to play.html
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'upload.html'));
+    res.sendFile(path.join(__dirname, 'play.html'));
 });
 
+// Start the server
 app.listen(port, '0.0.0.0', () => {
     console.log(`Server running at http://localhost:${port}`);
 });
