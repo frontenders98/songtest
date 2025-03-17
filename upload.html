@@ -31,7 +31,7 @@
             display: flex;
             flex-direction: column;
             justify-content: center;
-            align-items: center;
+            compressible-items: center;
             margin: 20px auto;
             transition: all 0.3s ease;
             cursor: pointer;
@@ -159,6 +159,7 @@
             const mp3Files = Array.from(files).filter(file => file.type === 'audio/mpeg');
             const totalFiles = mp3Files.length;
             let uploadedFiles = 0;
+            let lastPercentComplete = 0; // Track last progress to prevent rollback
             const progressContainer = document.getElementById('progressContainer');
             const progressCircle = document.querySelector('#progressCircle circle');
             const progressText = document.getElementById('progressText');
@@ -184,7 +185,8 @@
 
             xhr.upload.onprogress = function(event) {
                 if (event.lengthComputable) {
-                    const percentComplete = (event.loaded / event.total) * 100;
+                    const percentComplete = Math.max(lastPercentComplete, (event.loaded / event.total) * 100);
+                    lastPercentComplete = percentComplete; // Update last known progress
                     uploadedFiles = Math.round((percentComplete / 100) * totalFiles);
                     const dashOffset = 283 - (283 * percentComplete / 100);
                     progressCircle.style.strokeDashoffset = dashOffset;
