@@ -20,7 +20,7 @@
         }
         .container {
             padding: 40px;
-            width: 500px;
+            width: 600px;
             text-align: center;
             max-height: 90vh;
         }
@@ -32,7 +32,7 @@
         }
         #playPauseBtn {
             background: none;
-            color: #fff !important;
+            color: #fff;
             border: none;
             width: 100%;
             height: 100%;
@@ -41,6 +41,7 @@
             transition: all 0.3s ease;
             position: relative;
             z-index: 2;
+            outline: none;
         }
         #playPauseBtn:hover {
             transform: scale(1.1);
@@ -85,6 +86,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            outline: none;
         }
         #uploadBtn { left: 20px; }
         #durationBtn { left: 70px; }
@@ -110,36 +112,64 @@
             text-align: left;
             cursor: pointer;
             transition: all 0.3s ease;
+            outline: none;
         }
         #durationMenu button:hover {
             background: #fff;
             color: #000;
         }
-        #songSelect {
+        #controlGroup {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+            position: relative;
+        }
+        #songBox {
             background: #000;
             color: #fff;
             border: 1px solid #333;
-            padding: 10px;
-            margin: 0 10px 0 0;
+            padding: 12px;
             border-radius: 5px;
             font-size: 18px;
-            width: 60%;
-            cursor: pointer;
+            width: 360px; /* Wider, matches button width */
+            height: 22px;
+            cursor: text;
             transition: all 0.3s ease;
-            display: inline-block;
-            vertical-align: middle;
-            appearance: none;
-            max-height: 200px;
-            overflow-y: auto;
-        }
-        #songSelect:hover {
-            background: #fff;
-            color: #000;
-        }
-        #songSelect:focus {
+            position: relative;
             outline: none;
         }
-        #songSelect option.highlighted {
+        #songBox:hover {
+            border-color: #fff;
+        }
+        #songBox:focus {
+            border-color: #fff;
+            box-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
+        }
+        #songList {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            width: 360px; /* Matches songBox */
+            max-height: 300px;
+            overflow-y: auto;
+            background: #000;
+            border: 1px solid #333;
+            border-radius: 5px;
+            z-index: 10;
+        }
+        #songList div {
+            padding: 12px;
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        #songList div:hover {
+            background: #444;
+        }
+        #songList div.highlighted {
             background: #fff;
             color: #000;
         }
@@ -147,27 +177,18 @@
             background: #000;
             color: #fff;
             border: 1px solid #333;
-            padding: 10px 20px;
-            margin: 0 10px 0 0;
+            padding: 12px 20px;
             border-radius: 5px;
-            font-size: 16px;
+            font-size: 18px;
             cursor: pointer;
             transition: all 0.3s ease;
-            display: inline-block;
-            vertical-align: middle;
+            outline: none;
         }
-        #nextBtn { margin: 0 0 0 10px; }
         #submitBtn:hover, #nextBtn:hover {
             background: #fff;
             color: #000;
             box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
             transform: scale(1.05);
-        }
-        #buttonGroup {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 10px;
         }
         #result {
             margin: 20px 0;
@@ -176,18 +197,27 @@
             height: 20px;
             transition: all 0.5s ease;
         }
-        #result.correct #songSelect {
-            background: #00ff00;
-            color: #000;
-        }
-        #result.wrong #songSelect {
-            background: #ff0000;
-            color: #000;
-        }
         #correctAnswer {
             margin-top: 10px;
             font-size: 16px;
             color: #fff;
+        }
+        #updateMessage {
+            position: fixed;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #000;
+            color: #fff;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-size: 14px;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            z-index: 1000;
+        }
+        #updateMessage.show {
+            opacity: 1;
         }
     </style>
 </head>
@@ -203,15 +233,15 @@
         <button id="uploadBtn" title="Upload Songs"><i class="fas fa-upload"></i></button>
         <button id="durationBtn" title="Set Clip Duration"><i class="fas fa-clock"></i></button>
         <div id="durationMenu">
+            <button onclick="setClipDuration(12)">12s</button>
             <button onclick="setClipDuration(15)">15s</button>
             <button onclick="setClipDuration(20)">20s</button>
             <button onclick="setClipDuration(30)">30s</button>
         </div>
         
-        <div id="buttonGroup">
-            <select id="songSelect">
-                <option value="">Select a song...</option>
-            </select>
+        <div id="controlGroup">
+            <div id="songBox" contenteditable="true" placeholder="Search or select a song..."></div>
+            <div id="songList"></div>
             <button id="submitBtn" onclick="checkAnswer()">Submit</button>
             <button id="nextBtn" onclick="prepareNextQuiz()">Next</button>
         </div>
@@ -219,6 +249,7 @@
         <p id="result"></p>
         <p id="correctAnswer"></p>
     </div>
+    <div id="updateMessage">Update Pushed</div>
 
     <script>
         let songs = [];
@@ -227,22 +258,32 @@
         let clipDuration = 20;
         let timeoutId = null;
         let animationFrameId = null;
-        let pausedTime = 0; // Track pause position
         const audio = document.getElementById("audio-player");
         const playPauseBtn = document.getElementById("playPauseBtn");
         const progressCircle = document.querySelector('#progressRing circle');
+        const songBox = document.getElementById("songBox");
+        const songList = document.getElementById("songList");
+        const submitBtn = document.getElementById("submitBtn");
         const nextBtn = document.getElementById("nextBtn");
         const uploadBtn = document.getElementById("uploadBtn");
         const durationBtn = document.getElementById("durationBtn");
         const durationMenu = document.getElementById("durationMenu");
-        const songSelect = document.getElementById("songSelect");
         const result = document.getElementById("result");
         const correctAnswer = document.getElementById("correctAnswer");
+        const updateMessage = document.getElementById("updateMessage");
 
         let sessionId = localStorage.getItem('sessionId');
         if (!sessionId) {
             sessionId = Math.random().toString(36).substring(2);
             localStorage.setItem('sessionId', sessionId);
+        }
+
+        const currentVersion = '1.3';
+        const lastVersion = localStorage.getItem('appVersion');
+        if (lastVersion !== currentVersion) {
+            updateMessage.classList.add('show');
+            setTimeout(() => updateMessage.classList.remove('show'), 3000);
+            localStorage.setItem('appVersion', currentVersion);
         }
 
         fetch('/songs', {
@@ -260,40 +301,61 @@
             });
 
         function updateSongList(filter = '') {
-            songSelect.innerHTML = '<option value="">Select a song...</option>';
+            songList.innerHTML = '';
             const keywords = filter.toLowerCase().trim().split(/\s+/);
-            const filteredSongs = songs.filter(song => 
-                keywords.every(keyword => song.title.toLowerCase().includes(keyword))
-            );
-            let firstMatch = null;
+            const filteredSongs = filter 
+                ? songs.filter(song => keywords.some(keyword => song.title.toLowerCase().includes(keyword)))
+                : songs;
+            let closestMatch = null;
+
             filteredSongs.forEach(song => {
-                const option = document.createElement("option");
-                option.value = song.title;
-                option.textContent = song.title;
-                if (!firstMatch && filter && keywords.every(keyword => song.title.toLowerCase().includes(keyword))) {
-                    firstMatch = option;
-                    option.classList.add('highlighted');
+                const div = document.createElement("div");
+                div.textContent = song.title;
+                div.dataset.value = song.title;
+                div.onclick = () => {
+                    songBox.textContent = song.title;
+                    songList.style.display = 'none';
+                };
+                songList.appendChild(div);
+
+                if (!closestMatch && filter) {
+                    const songWords = song.title.toLowerCase().split(/\s+/);
+                    const matchCount = keywords.filter(k => songWords.includes(k)).length;
+                    if (!closestMatch || matchCount > closestMatch.matchCount) {
+                        closestMatch = { div, matchCount };
+                    }
                 }
-                songSelect.appendChild(option);
             });
-            if (firstMatch) {
-                songSelect.value = firstMatch.value;
-                firstMatch.scrollIntoView({ block: 'nearest' });
+
+            if (closestMatch) {
+                closestMatch.div.classList.add('highlighted');
+                closestMatch.div.scrollIntoView({ block: 'nearest' });
             }
         }
 
-        let lastSearch = '';
-        songSelect.addEventListener('keydown', (e) => {
+        songBox.addEventListener('focus', () => {
+            updateSongList(songBox.textContent);
+            songList.style.display = 'block';
+        });
+
+        songBox.addEventListener('input', () => {
+            updateSongList(songBox.textContent);
+        });
+
+        songBox.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                return;
+                const highlighted = songList.querySelector('.highlighted');
+                if (highlighted) {
+                    songBox.textContent = highlighted.dataset.value;
+                    songList.style.display = 'none';
+                }
             }
-            if (e.key.length === 1 || e.key === ' ') {
-                lastSearch += e.key;
-                updateSongList(lastSearch);
-            } else if (e.key === 'Backspace') {
-                lastSearch = lastSearch.slice(0, -1);
-                updateSongList(lastSearch);
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!songBox.contains(e.target) && !songList.contains(e.target)) {
+                songList.style.display = 'none';
             }
         });
 
@@ -310,12 +372,11 @@
             playPauseBtn.innerHTML = '<i class="fas fa-play"></i>';
             playPauseBtn.classList.remove("playing");
             progressCircle.style.strokeDashoffset = 283;
-            songSelect.style.background = "#000";
-            songSelect.style.color = "#fff";
+            songBox.style.background = "#000";
+            songBox.style.color = "#fff";
             result.textContent = "";
             correctAnswer.textContent = "";
-            lastSearch = '';
-            pausedTime = 0; // Reset paused time for new clip
+            songBox.textContent = "";
 
             currentSong = songs[Math.floor(Math.random() * songs.length)];
             audio.src = `/uploads/${currentSong.file}`;
@@ -328,7 +389,6 @@
                     clipStartTime = Math.random() * (audio.duration - clipDuration);
                 }
                 audio.currentTime = clipStartTime;
-                songSelect.value = "";
                 playSong();
             };
             audio.onerror = function() {
@@ -345,6 +405,8 @@
             }).catch(err => {
                 console.error('Playback failed:', err);
                 result.textContent = "Playback failed!";
+                playPauseBtn.innerHTML = '<i class="fas fa-play"></i>';
+                playPauseBtn.classList.remove("playing");
             });
         }
 
@@ -354,17 +416,21 @@
             const remainingTime = clipDuration - elapsedBeforePause;
             timeoutId = setTimeout(() => {
                 audio.pause();
+                audio.currentTime = clipStartTime;
                 playPauseBtn.innerHTML = '<i class="fas fa-play"></i>';
                 playPauseBtn.classList.remove("playing");
                 progressCircle.style.strokeDashoffset = 283;
                 timeoutId = null;
+                if (animationFrameId) cancelAnimationFrame(animationFrameId);
             }, remainingTime * 1000);
 
             const start = Date.now() - (elapsedBeforePause * 1000);
+            let lastProgress = elapsedBeforePause / clipDuration;
             function updateProgress() {
-                if (!audio.paused) {
+                if (!audio.paused && audio.currentTime <= clipStartTime + clipDuration) {
                     const elapsed = (Date.now() - start) / 1000;
-                    const progress = Math.min(elapsed / clipDuration, 1);
+                    const progress = Math.min(Math.max(elapsed / clipDuration, lastProgress), 1);
+                    lastProgress = progress;
                     const dashOffset = 283 - (283 * progress);
                     progressCircle.style.strokeDashoffset = dashOffset;
                     animationFrameId = requestAnimationFrame(updateProgress);
@@ -375,13 +441,14 @@
 
         playPauseBtn.onclick = function() {
             if (audio.paused && currentSong) {
-                if (audio.currentTime < clipStartTime || audio.currentTime >= clipStartTime + clipDuration) {
-                    audio.currentTime = clipStartTime; // Reset only if outside clip
+                if (audio.currentTime >= clipStartTime + clipDuration || audio.currentTime < clipStartTime) {
+                    audio.currentTime = clipStartTime;
+                    playSong();
+                } else {
+                    playSong();
                 }
-                playSong();
             } else if (!audio.paused) {
                 audio.pause();
-                pausedTime = audio.currentTime;
                 playPauseBtn.innerHTML = '<i class="fas fa-play"></i>';
                 playPauseBtn.classList.remove("playing");
                 if (timeoutId) clearTimeout(timeoutId);
@@ -412,22 +479,20 @@
         });
 
         function checkAnswer() {
-            const selectedSong = songSelect.value;
+            const selectedSong = songBox.textContent.trim();
             if (!selectedSong) {
                 result.textContent = "Please select a song first!";
                 return;
             }
             if (selectedSong === currentSong.title) {
                 result.textContent = "Correct!";
-                result.classList.add("correct");
-                songSelect.style.background = "#00ff00";
-                songSelect.style.color = "#000";
+                songBox.style.background = "#00ff00";
+                songBox.style.color = "#000";
                 correctAnswer.textContent = "";
             } else {
                 result.textContent = "Wrong!";
-                result.classList.add("wrong");
-                songSelect.style.background = "#ff0000";
-                songSelect.style.color = "#000";
+                songBox.style.background = "#ff0000";
+                songBox.style.color = "#000";
                 correctAnswer.textContent = `Correct: ${currentSong.title}`;
             }
         }

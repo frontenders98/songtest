@@ -11,7 +11,7 @@ app.use(express.static(__dirname, { maxAge: '1d' }));
 app.use('/uploads', express.static('uploads', { maxAge: '1d' }));
 
 app.use(session({
-    secret: 'XTC9nBPVsF', // Change this!
+    secret: 'XTC9nBPVsF', // Keep your secret!
     resave: false,
     saveUninitialized: true,
     cookie: { secure: false } // Set to true if HTTPS
@@ -27,21 +27,22 @@ const storage = multer.diskStorage({
         cb(null, uploadDir);
     },
     filename: (req, file, cb) => {
-        cb(null, Date.now() + path.extname(file.originalname));
+        cb(null, `${Date.now()}-${file.originalname}`); // Unique filenames on disk
     }
 });
 const upload = multer({
     storage,
-    limits: { fileSize: 50 * 1024 * 1024, files: 500 },
+    limits: { fileSize: 50 * 1024 * 1024, files: 1000 }, // Up to 1000 files
     fileFilter: (req, file, cb) => {
         if (file.mimetype === 'audio/mpeg') {
             cb(null, true);
         } else {
-            cb(null, false); // Silently skip non-MP3 files
+            cb(null, false);
         }
     }
-}).array('songs');
+}).array('songs', 1000);
 
+// Get songs endpoint
 app.get('/songs', (req, res) => {
     const clientSessionId = req.headers['x-session-id'] || req.session.id;
     const songsFile = `songs-${clientSessionId}.json`;
@@ -50,14 +51,14 @@ app.get('/songs', (req, res) => {
     }
     try {
         const songs = JSON.parse(fs.readFileSync(songsFile, 'utf8'));
-        const uniqueSongs = Array.from(new Map(songs.map(song => [song.title.toLowerCase(), song])).values());
-        res.json(uniqueSongs);
+        res.json(songs); // Return all songs
     } catch (err) {
         console.error('Error reading songs file:', err);
         res.status(500).json([]);
     }
 });
 
+// Upload songs endpoint
 app.post('/upload', (req, res) => {
     upload(req, res, (err) => {
         if (err instanceof multer.MulterError) {
@@ -87,16 +88,18 @@ app.post('/upload', (req, res) => {
             file: `${clientSessionId}/${file.filename}`
         }));
 
-        newSongs.forEach(newSong => {
-            if (!songs.some(song => song.title.toLowerCase() === newSong.title.toLowerCase())) {
-                songs.push(newSong);
-            }
-        });
+        // Filter out duplicates based on original filename (title)
+        const uniqueNewSongs = newSongs.filter(newSong => 
+            !songs.some(existing => existing.title === newSong.title)
+        );
+
+        // Add only unique new songs
+        songs = [...songs, ...uniqueNewSongs];
 
         try {
             fs.writeFileSync(songsFile, JSON.stringify(songs, null, 2));
-            const uniqueSongs = Array.from(new Map(songs.map(song => [song.title.toLowerCase(), song])).values());
-            res.json(uniqueSongs); // Respond immediately after writing
+            console.log(`Total songs: ${songs.length}, New songs added: ${uniqueNewSongs.length}`);
+            res.json(songs); // Return updated list
         } catch (err) {
             console.error('Error writing songs file:', err);
             res.status(500).json({ error: 'Failed to save songs' });
